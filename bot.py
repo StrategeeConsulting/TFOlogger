@@ -4,6 +4,7 @@ import os
 from flask import Flask
 import threading
 import re
+import json
 
 # 🔧 Intents setup
 intents = discord.Intents.default()
@@ -15,6 +16,21 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # 🗑 Deleted messages log
 deleted_messages = []
+
+# 💾 JSON storage
+DATA_FILE = "deleted_messages.json"
+
+def save_deleted_messages():
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(deleted_messages, f, default=str, indent=2)
+
+def load_deleted_messages():
+    global deleted_messages
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            deleted_messages = json.load(f)
+    except FileNotFoundError:
+        deleted_messages = []
 
 # 🚨 Suspicious keywords and domains
 SUSPICIOUS_KEYWORDS = ["password", "token", "leak", "ban", "cheat", "dm me"]
@@ -39,6 +55,7 @@ def paginate(text, limit=1900):
 # ✅ Bot ready event
 @bot.event
 async def on_ready():
+    load_deleted_messages()
     activity = discord.Game(name="YOU'RE BEING MONITORED")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     print(f"✅ Logged in as {bot.user}")
@@ -57,9 +74,10 @@ async def on_message_delete(message: discord.Message):
         "author_id": message.author.id,
         "author_name": message.author.display_name,
         "content": message.content,
-        "timestamp": message.created_at,
+        "timestamp": str(message.created_at),
         "flagged": flagged
     })
+    save_deleted_messages()
 
     await log_message("🗑 Message Deleted", message)
 
@@ -85,7 +103,7 @@ async def deletedby(ctx, member: discord.Member):
 
     response = f"Deleted messages by {member.display_name}:\n"
     for msg in results[-5:]:
-        timestamp = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
+        timestamp = msg["timestamp"]
         response += f"[{timestamp}] {msg['content']}\n"
 
     for page in paginate(response):
@@ -101,7 +119,7 @@ async def searchdeleted(ctx, *, keyword: str):
 
     response = f"Deleted messages containing '{keyword}':\n"
     for msg in results:
-        timestamp = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
+        timestamp = msg["timestamp"]
         response += f"[{timestamp}] {msg['author_name']}: {msg['content']}\n"
 
     for page in paginate(response):
