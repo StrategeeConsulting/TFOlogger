@@ -70,3 +70,18 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 
 import os
 bot.run(os.getenv("DISCORD_TOKEN"))
+
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=10000)
+
+threading.Thread(target=run_web).start()
+
