@@ -1,9 +1,47 @@
 import discord
 from discord.ext import commands
 
+deleted_messages = []
+@bot.event
+async def on_message_delete(message: discord.Message):
+    deleted_messages.append({
+        "author": message.author,
+        "content": message.content,
+        "timestamp": message.created_at
+    })
+    await log_message("Message Deleted", message)
+
+deleted_messages = []
+
+@bot.event
+async def on_message_delete(message: discord.Message):
+    deleted_messages.append({
+        "author": message.author,
+        "content": message.content,
+        "timestamp": message.created_at
+    })
+    await log_message("Message deleted", message)
+
+@bot.command()
+async def deletedby(ctx, member: discord.Member):
+    results = [msg for msg in deleted_messages if msg["author"].id == member.id]
+
+    if not results:
+        await ctx.send(f"No deleted messages found for {member.display_name}.")
+        return
+
+    response = f"Deleted messages by {member.display_name}:\n"
+    for msg in results[-5:]:  # Show last 5
+        timestamp = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
+        response += f"[{timestamp}] {msg['content']}\n"
+
+    await ctx.send(response)
+    
 intents = discord.Intents.default()
 intents.message_content = True
-intents.messages = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -67,6 +105,20 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
     if before.guild is None or before.content == after.content:
         return
     await log_message("✏️ Message Edited", before, before=before.content, after=after.content)
+
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    activity = discord.Game(name="YOU'RE BEING MONITORED")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
+    print(f"Logged in as {bot.user}")
+
 
 import os
 bot.run(os.getenv("DISCORD_TOKEN"))
