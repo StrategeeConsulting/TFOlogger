@@ -301,3 +301,18 @@ async def log_message(event_title: str, message: discord.Message, before: str = 
                 embed.add_field(name=f"Embed {i}", value="\n".join(details), inline=False)
 
     await log_channel.send(embed=embed, files=files_to_send)
+
+    # 🌐 Flask web server for Render
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=10000)
+
+# 🚀 Keep Flask and bot alive
+if __name__ == "__main__":
+    threading.Thread(target=run_web).start()
+    bot.run(os.getenv("DISCORD_TOKEN"))
