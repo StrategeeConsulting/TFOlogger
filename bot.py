@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 from flask import Flask
 import threading
+import re
 
 # 🔧 Intents setup
 intents = discord.Intents.default()
@@ -14,6 +15,26 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # 🗑 Deleted messages log
 deleted_messages = []
+
+# 🚨 Suspicious keywords and domains
+SUSPICIOUS_KEYWORDS = ["password", "token", "leak", "ban", "cheat", "dm me"]
+SUSPICIOUS_DOMAINS = ["bit.ly", "tinyurl.com", "discord.gg", "grabify.link"]
+
+# 🔍 Link extractor
+def extract_links(text):
+    return re.findall(r'https?://\S+', text)
+
+# 📄 Pagination helper
+def paginate(text, limit=1900):
+    lines = text.split('\n')
+    pages, current = [], ""
+    for line in lines:
+        if len(current) + len(line) + 1 > limit:
+            pages.append(current)
+            current = ""
+        current += line + "\n"
+    pages.append(current)
+    return pages
 
 # ✅ Bot ready event
 @bot.event
@@ -27,13 +48,25 @@ async def on_ready():
 async def on_message_delete(message: discord.Message):
     if message.guild is None:
         return
+
+    content_lower = message.content.lower()
+    links = extract_links(message.content)
+    flagged = any(word in content_lower for word in SUSPICIOUS_KEYWORDS) or any(domain in link for link in links for domain in SUSPICIOUS_DOMAINS)
+
     deleted_messages.append({
         "author_id": message.author.id,
         "author_name": message.author.display_name,
         "content": message.content,
-        "timestamp": message.created_at
+        "timestamp": message.created_at,
+        "flagged": flagged
     })
+
     await log_message("🗑 Message Deleted", message)
+
+    if flagged:
+        alert_channel = bot.get_channel(LOG_CHANNEL_ID)
+        if alert_channel:
+            await alert_channel.send(f"⚠️ Suspicious deleted message by {message.author.mention}:\n`{message.content}`")
 
 # ✏️ Message edited event
 @bot.event
@@ -49,11 +82,30 @@ async def deletedby(ctx, member: discord.Member):
     if not results:
         await ctx.send(f"No deleted messages found for {member.display_name}.")
         return
+
     response = f"Deleted messages by {member.display_name}:\n"
     for msg in results[-5:]:
         timestamp = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
         response += f"[{timestamp}] {msg['content']}\n"
-    await ctx.send(response)
+
+    for page in paginate(response):
+        await ctx.send(page)
+
+# 🔍 Command: !searchdeleted
+@bot.command()
+async def searchdeleted(ctx, *, keyword: str):
+    results = [msg for msg in deleted_messages if keyword.lower() in msg["content"].lower()]
+    if not results:
+        await ctx.send(f"No deleted messages found containing '{keyword}'.")
+        return
+
+    response = f"Deleted messages containing '{keyword}':\n"
+    for msg in results:
+        timestamp = msg["timestamp"].strftime("%Y-%m-%d %H:%M")
+        response += f"[{timestamp}] {msg['author_name']}: {msg['content']}\n"
+
+    for page in paginate(response):
+        await ctx.send(page)
 
 # 📋 Logging function
 LOG_SERVER_ID = 1365466210266779709
